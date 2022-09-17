@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id         Int         @id @default(autoincrement()) //change to sequence() for cockroachdb
+  code       String //join code?
+  gameStates GameState[] //all the game states for this room
+  users      User[] //all users
+}
+
+model User {
+  id        Int    @id @default(autoincrement())
+  sessionId String @unique
+  ip        String
+  socket    String @unique
+  name      String
+  room      Room?  @relation(fields: [roomId], references: [id])
+  roomId    Int?
+}
+
+model Plugin {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String
+  image       String //plugin thumbnail image
+  src         String //URL to load plugin from
+  GameState   GameState[] //automanaged relation
+}
+
+model GameState {
+  id        Int    @id @default(autoincrement())
+  room      Room   @relation(fields: [roomId], references: [id])
+  roomId    Int
+  plugin    Plugin @relation(fields: [pluginId], references: [id])
+  pluginId  Int
+  positionX Int
+  positionY Int
+  data      String //change to Json for cockroachdb
+}
