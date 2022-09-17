@@ -15,10 +15,7 @@ io.on("connection", (socket) => {
 
     socket.on('create_room', (data, callback) => {
         console.log(`create_room ${data.code}`);
-        // check if room already exist
-        if(rooms[data.code]) {
-            callback('error');
-        }
+
         // actually make the room
         rooms[data.code] = { 'users': [] }
         id_map[data.code] = {}
@@ -28,24 +25,14 @@ io.on("connection", (socket) => {
 
     socket.on('join_room', (data, callback) => {
         console.log(`join_room ${data.code} ${data.session_id}`);
-        // check room exists
-        if(!rooms[data.code]) {
-            callback('error');
-        }
-        // check if user already exists
-        if(!id_map[data.code].includes(data.session_id)) {
-            callback('error');
-        }
+
         socket.join(`room:${data.code}`)
         callback('ok');
     });
 
     socket.on('join_new_room', (data, callback) => {
         console.log(`join_new_room ${data.code} ${data.username}`);
-        // check room exists
-        if(!rooms[data.code]) {
-            callback('error');
-        }
+
         let id = nanoid();
         id_map[data.code][id] = data.username;
         callback(id);
@@ -55,54 +42,66 @@ io.on("connection", (socket) => {
 
     socket.on('send_message', (data, callback) => {
         console.log(`send_message ${data.session_id} ${data.code} ${data.msg}`);
-        // check room exists
-        if(!rooms[data.code]) {
-            callback('error');
-        }
-        // check user in room
-        if(!id_map[data.code].includes(data.session_id)) {
-            callback('error');
-        }
+
         socket.to(`room:${data.code}`).emit('message_sent', { username: id_map[data.code][data.session_id], code: data.code, msg: data.msg });
         callback('ok');
     });
 
     socket.on("create_plugin", (data, callback) => {
         console.log(`create_plugin ${data.code} ${data.plugin}`);
-        if(!rooms[data.code]) {
-            callback('error');
-        }
+
         // todo: implement plugin creation
         // allocate the plugin
         if(lazy.length > 0) {
-            instances[lazy[lazy.length - 1]].push([]); // todo implement
+            instances[lazy[lazy.length - 1]] = { x: 800, y: 500, data: '' }; // todo implement
+            callback(lazy[lazy.length - 1]);
             lazy.pop(lazy.length - 1);
         } else {
-            instances.push([]); // todo implement
+            instances.push({ x: 800, y: 500, data: '' }); // todo implement
+            callback(instances.length - 1);
         }
         callback('ok');
     });
 
     socket.on("join_plugin", (data, callback) => {
-        console.log(`join_plugin ${data.username} ${data.code} ${data.slot}`);
-        // check user in room
-        if(!id_map[data.code].includes(data.session_id)) {
-            callback('error');
-        }
-        // check room exists
-        if(!rooms[data.code]) {
-            callback('error');
-        }
-        // check plugin exists
-        if(0 > data.slot || data.slot > instances.length || instances[data.slot] === null) {
-            callback('error');
-        }
-        // allocate a room
+        console.log(`join_plugin ${data.session_id} ${data.code} ${data.slot}`);
 
+        // allocate a room
         const plugin_room = `plugin:${data.slot}`;
         socket.join(plugin_room);
         callback(plugin_room);
   
         socket.broadcast.to(plugin_room).emit("plugin_user_joined", {});
+    });
+
+    socket.on("leave_plugin", (data, callback) => {
+        console.log(`leave_plugin ${data.session_id} ${data.code} ${data.slot}`);
+        
+        const plugin_room = `plugin:${data.slot}`;
+        socket.leave(plugin_room);
+        socket.broadcast.to(plugin_room).emit("plugin_user_left", {});
+    });
+
+    socket.on("delete_plugin", (data, callback) => {
+        console.log(`delete_plugin ${data.code} ${data.slot}`);
+
+        const plugin_room = `plugin:${data.slot}`;
+        io.in(plugin_room).socketsLeave(plugin_room);
+        
+        lazy.push(data.slot);
+        instances[data.slot] = null;
+
+        callback('ok');
+    });
+
+    socket.on("get_data", (data, callback) => {
+        console.log(`get_data ${data.code} ${data.slot}`);
+        callback(instances[data.slot]);
+    });
+
+    socket.on("set_data", (data, callback) => {
+        console.log(`set_data ${data.code} ${data.slot} ${data.data}`);
+        instances[data.slot] = data.data;
+        callback('ok');
     });
 });
