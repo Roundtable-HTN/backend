@@ -2,9 +2,11 @@
     "compilerOptions": {
         "sourceMap": true,
         "outDir": "./dist",
-        "moduleResolution": "Node",
+        "moduleResolution": "node",
         "resolveJsonModule": true,
         "strict": true,
+        "target": "es2022",
+        "types": []
     },
-    "include": ["."]
+    "include": ["."],
 }

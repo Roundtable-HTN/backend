@@ -1,7 +1,10 @@
 import { Server } from "socket.io";
+import { PrismaClient } from '@prisma/client'
+
 import { nanoid } from "nanoid";
 
 const io = new Server(3000, { /* options */ });
+const prisma = new PrismaClient();
 
 let id_map: any = {};
 let rooms: any = {};
