@@ -17,7 +17,7 @@ io.on("connection", (socket) => {
         console.log(`create_room ${data.code}`);
 
         // actually make the room
-        rooms[data.code] = { 'users': [] }
+        rooms[data.code] = { users: [] }
         id_map[data.code] = {}
         socket.join(`room:${data.code}`)
         callback('ok');
@@ -49,15 +49,13 @@ io.on("connection", (socket) => {
 
     socket.on("create_plugin", (data, callback) => {
         console.log(`create_plugin ${data.code} ${data.plugin}`);
-
-        // todo: implement plugin creation
         // allocate the plugin
         if(lazy.length > 0) {
-            instances[lazy[lazy.length - 1]] = { x: 800, y: 500, data: '' }; // todo implement
+            instances[lazy[lazy.length - 1]] = { x: 800, y: 500, data: '', host: null }; // todo implement
             callback(lazy[lazy.length - 1]);
             lazy.pop(lazy.length - 1);
         } else {
-            instances.push({ x: 800, y: 500, data: '' }); // todo implement
+            instances.push({ x: 800, y: 500, data: '', host: null }); // todo implement
             callback(instances.length - 1);
         }
         callback('ok');
@@ -66,7 +64,12 @@ io.on("connection", (socket) => {
     socket.on("join_plugin", (data, callback) => {
         console.log(`join_plugin ${data.session_id} ${data.code} ${data.slot}`);
 
-        // allocate a room
+        if(!instances[data.slot].host) {
+            instances[data.slot].host = data.session_id;
+            socket.to(`room:${data.code}`).emit('set_host', { host: data.session_id });
+        }
+
+        // join a room
         const plugin_room = `plugin:${data.slot}`;
         socket.join(plugin_room);
         callback(plugin_room);
@@ -76,7 +79,7 @@ io.on("connection", (socket) => {
 
     socket.on("leave_plugin", (data, callback) => {
         console.log(`leave_plugin ${data.session_id} ${data.code} ${data.slot}`);
-        
+
         const plugin_room = `plugin:${data.slot}`;
         socket.leave(plugin_room);
         socket.broadcast.to(plugin_room).emit("plugin_user_left", {});
@@ -103,5 +106,15 @@ io.on("connection", (socket) => {
         console.log(`set_data ${data.code} ${data.slot} ${data.data}`);
         instances[data.slot] = data.data;
         callback('ok');
+    });
+
+    socket.on("plugin_broadcast", (data, callback) => {
+        console.log(`plugin_broadcast ${data.code} ${data.slot} ${data.msg}`);
+        const plugin_room = `plugin:${data.slot}`;
+        socket.broadcast.to(plugin_room).emit(data.msg);     
+    });
+
+    socket.on("disconnect", () => {
+        // todo: handle changing hosts
     });
 });
