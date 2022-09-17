@@ -1,0 +1,24 @@
+{
+  "name": "backend",
+  "version": "0.0.1",
+  "description": "Roundtable backend server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Roundtable-HTN/backend.git"
+  },
+  "author": "ApocalypseCalculator, hillcrestpaul0719",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Roundtable-HTN/backend/issues"
+  },
+  "homepage": "https://github.com/Roundtable-HTN/backend#readme",
+  "dependencies": {
+    "express": "^4.18.1",
+    "prisma": "^4.3.1",
+    "socket.io": "^4.5.2"
+  }
+}
