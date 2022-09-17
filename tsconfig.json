@@ -8,5 +8,5 @@
         "target": "es2022",
         "types": []
     },
-    "include": ["."],
+    "include": ["."]
 }
