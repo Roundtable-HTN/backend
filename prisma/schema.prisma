@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model User {
 
 model Room {
   id         Int         @id @default(autoincrement()) //change to sequence() for cockroachdb
-  code       String //join code?
+  code       String  @unique //join code?
   users      User[] //all users
   pluginInstances PluginInstance[]
 }
@@ -35,7 +35,7 @@ model PluginInstance {
   positionX   Int
   positionY   Int
 
-  data        Json?
+  data        String?
 
   plugin      Plugin @relation(fields: [pluginId], references: [id])
   pluginId    Int
