@@ -3,10 +3,18 @@ import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 
 import { nanoid } from "nanoid";
+import express from "express";
+import * as http from "http";
 
-const io = new Server(3000, {
-  /* options */
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+server.listen(8080, () => {
+  console.log(`Server listening on port 8080`);
 });
+
+app.use(express.static('../client/dist/'));
+
 const prisma = new PrismaClient();
 
 let id_map: any = {}; // Map<Room Code, Map<Session ID, Username>>
@@ -17,6 +25,7 @@ let lazy: any = [];
 
 io.use(async (socket, next) => {
   const userId = socket.handshake.auth.userId;
+  console.log(`userid: ${userId}`);
 
   if (userId) {
     const user = await prisma.user.findUnique({
@@ -25,9 +34,15 @@ io.use(async (socket, next) => {
       },
     });
 
+
+    console.log(userId);
+    console.log(user);
+
     if (user) {
       // @ts-ignore
       socket.user = user;
+
+      console.log(socket.user);
 
       return next();
     } else {
@@ -71,11 +86,13 @@ io.on("connection", async (socket) => {
 
     socket.join(`room:${data.code}`);
 
+    console.log(socket.rooms);
+
     const user = await prisma.user.update({
       where: {
         id: socket.user.id,
       },
-      data: {
+      data: { 
         rooms: {
           connect: {
             // @ts-ignore
@@ -97,10 +114,11 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("send_message", (data, callback) => {
+    console.log(socket.user);
     // @ts-ignore
     if (!socket.user) return callback("Not logged in");
 
-    socket.to(`room:${data.code}`).emit("message_sent", {
+    io.to(`room:${data.code}`).emit("message_sent", {
       // @ts-ignore
       username: socket.user.name,
       code: data.code,
@@ -252,7 +270,7 @@ io.on("connection", async (socket) => {
 
   socket.on("list_users", async (data, callback) => {
     console.log(`list_users ${data.code}`);
-    let users = await prisma.room.findFirst({ where: { code: data.code }}).users;
+    let users = await prisma.room.findFirst({ where: { code: data.code }}).users; //incorrect
     callback(users);
   });
 
