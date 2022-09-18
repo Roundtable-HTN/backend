@@ -3,43 +3,48 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int    @id @default(autoincrement())
+  name       String
+  rooms      Room[]
+  pluginInstanceHosting PluginInstance[] @relation("PluginInstanceHosting")
+  pluginInstanceParticipating PluginInstance[] @relation("PluginInstanceParticipating")
 }
 
 model Room {
   id         Int         @id @default(autoincrement()) //change to sequence() for cockroachdb
   code       String //join code?
-  gameStates GameState[] //all the game states for this room
   users      User[] //all users
-}
-
-model User {
-  id        Int    @id @default(autoincrement())
-  sessionId String @unique
-  ip        String
-  socket    String @unique
-  name      String
-  room      Room?  @relation(fields: [roomId], references: [id])
-  roomId    Int?
+  pluginInstances PluginInstance[]
 }
 
 model Plugin {
   id          Int         @id @default(autoincrement())
   name        String
   description String
-  image       String //plugin thumbnail image
-  src         String //URL to load plugin from
-  GameState   GameState[] //automanaged relation
+  pluginInstances PluginInstance[]
 }
 
-model GameState {
-  id        Int    @id @default(autoincrement())
-  room      Room   @relation(fields: [roomId], references: [id])
-  roomId    Int
-  plugin    Plugin @relation(fields: [pluginId], references: [id])
-  pluginId  Int
-  positionX Int
-  positionY Int
-  data      String //change to Json for cockroachdb
+model PluginInstance {
+  id          Int         @id @default(autoincrement())
+
+  positionX   Int
+  positionY   Int
+
+  data        Json
+
+  plugin      Plugin @relation(fields: [pluginId], references: [id])
+  pluginId    Int
+
+  room        Room @relation(fields: [roomId], references: [id])
+  roomId      Int
+
+  host        User @relation("PluginInstanceHosting", fields: [hostId], references: [id])
+  hostId      Int
+
+  users       User[] @relation("PluginInstanceParticipating")
 }
