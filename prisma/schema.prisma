@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "cockroachdb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id         Int    @id @default(autoincrement())
+  id         Int    @id @default(sequence())
   name       String
   rooms      Room[]
   pluginInstanceHosting PluginInstance[] @relation("PluginInstanceHosting")
@@ -16,21 +16,21 @@ model User {
 }
 
 model Room {
-  id         Int         @id @default(autoincrement()) //change to sequence() for cockroachdb
-  code       String  @unique //join code?
+  id         Int         @id @default(sequence()) 
+  code       String  @unique //join code
   users      User[] //all users
   pluginInstances PluginInstance[]
 }
 
 model Plugin {
-  id          Int         @id @default(autoincrement())
+  id          Int         @id @default(sequence())
   name        String
   description String
   pluginInstances PluginInstance[]
 }
 
 model PluginInstance {
-  id          Int         @id @default(autoincrement())
+  id          Int         @id @default(sequence())
 
   positionX   Int
   positionY   Int
