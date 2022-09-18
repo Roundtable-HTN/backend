@@ -159,6 +159,12 @@ io.on("connection", async (socket) => {
     socket.broadcast.to(plugin_room).emit("broadcasted_plugin_event", data.msg);
   });
 
+  socket.on("list_users", async (data, callback) => {
+    console.log(`list_users ${data.code}`);
+    let users = await prisma.room.findFirst({ where: { code: data.code }}).users;
+    callback(users);
+  });
+
   socket.on("disconnect", () => {
     // todo: handle changing hosts
   });
