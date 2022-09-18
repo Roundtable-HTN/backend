@@ -250,6 +250,12 @@ io.on("connection", async (socket) => {
       .emit("plugin_instance_broadcasted", data.msg);
   });
 
+  socket.on("list_users", async (data, callback) => {
+    console.log(`list_users ${data.code}`);
+    let users = await prisma.room.findFirst({ where: { code: data.code }}).users;
+    callback(users);
+  });
+
   socket.on("disconnect", () => {
     // todo: handle changing hosts
   });
