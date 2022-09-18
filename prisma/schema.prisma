@@ -35,7 +35,7 @@ model PluginInstance {
   positionX   Int
   positionY   Int
 
-  data        Json
+  data        Json?
 
   plugin      Plugin @relation(fields: [pluginId], references: [id])
   pluginId    Int
@@ -43,8 +43,8 @@ model PluginInstance {
   room        Room @relation(fields: [roomId], references: [id])
   roomId      Int
 
-  host        User @relation("PluginInstanceHosting", fields: [hostId], references: [id])
-  hostId      Int
+  host        User? @relation("PluginInstanceHosting", fields: [hostId], references: [id])
+  hostId      Int?
 
   users       User[] @relation("PluginInstanceParticipating")
 }

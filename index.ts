@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 
@@ -14,7 +15,7 @@ let rooms: any = {}; // Map<Room Code, Ob
 let instances: any = []; // Array<{x, y, data, host}>
 let lazy: any = [];
 
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const userId = socket.handshake.auth.userId;
 
   if (userId) {
@@ -25,6 +26,7 @@ io.use((socket, next) => {
     });
 
     if (user) {
+      // @ts-ignore
       socket.user = user;
 
       return next();
@@ -32,6 +34,8 @@ io.use((socket, next) => {
       return next(new Error("Invalid user id"));
     }
   }
+
+  next();
 });
 
 io.on("connection", async (socket) => {
@@ -48,6 +52,7 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("room_create", async (data, callback) => {
+    // @ts-ignore
     if (!socket.user) return callback("Not logged in");
 
     socket.join(`room:${data.code}`);
@@ -73,19 +78,30 @@ io.on("connection", async (socket) => {
       data: {
         rooms: {
           connect: {
+            // @ts-ignore
             code: data.code,
           },
         },
       },
     });
 
+    const room = await prisma.room.findUnique({
+      where: {
+        // @ts-ignore
+        code: data.code,
+      },
+    });
+
+    // @ts-ignore
     return callback(room.id);
   });
 
   socket.on("send_message", (data, callback) => {
+    // @ts-ignore
     if (!socket.user) return callback("Not logged in");
 
     socket.to(`room:${data.code}`).emit("message_sent", {
+      // @ts-ignore
       username: socket.user.name,
       code: data.code,
       msg: data.msg,
@@ -93,70 +109,145 @@ io.on("connection", async (socket) => {
     callback("ok");
   });
 
-  socket.on("plugin_instance_create", (data, callback) => {
-    await pluginInstance = prisma.pluginInstance.create({
+  socket.on("plugin_instance_create", async (data, callback) => {
+    // @ts-ignore
+    if (!socket.user) return callback("Not logged in");
+
+    const pluginInstance = await prisma.pluginInstance.create({
+      // @ts-ignore
       positionX: 800,
       positionY: 500,
-      data: {},
       pluginId: data.pluginId,
       room: data.roomId,
     });
-    callback("ok");
+
+    socket.broadcast.to(`room:${pluginInstanceId.room.code}`).emit("plugin_instance_created", {pluginInstanceId: pluginInstanceId.id});
+
+    callback(pluginInstance.id);
   });
 
-  /// TODO below
+  socket.on("plugin_instance_join", async (data, callback) => {
+    // @ts-ignore
+    if (!socket.user) return callback("Not logged in");
 
-  socket.on("join_plugin", (data, callback) => {
-    if (!instances[data.slot].host) {
-      instances[data.slot].host = data.session_id;
+    let pluginInstance = await prisma.pluginInstance.findUnique({
+      where: {
+        id: data.pluginInstanceId,
+      },
+    });
+
+    if (!pluginInstance.host) {
+      pluginInstance.hostId = socket.user.id;
+
       socket
-        .to(`room:${data.code}`)
-        .emit("set_host", { host: data.session_id });
+        .to(`plugin:${pluginInstance.id}`)
+        .emit("plugin_instance_host_set", { host: pluginInstance?.hostId });
     }
 
-    // join a room
-    const plugin_room = `plugin:${data.slot}`;
-    socket.join(plugin_room);
-    callback(plugin_room);
+    pluginInstance = await prisma.pluginInstance.update({
+      where: {
+        id: pluginInstance?.id,
+      },
+      data: {
+        users: {
+          connect: {
+            id: socket.user.id,
+          },
+        },
+      },
+    });
 
-    socket.broadcast.to(plugin_room).emit("plugin_user_joined", {});
+    socket.join(`plugin:${pluginInstance.id}`);
+
+    socket.broadcast
+      .to(`plugin:${pluginInstance.id}`)
+      .emit("plugin_instance_user_join", { username: socket.user.name });
+
+    callback(true);
   });
 
-  socket.on("leave_plugin", (data, callback) => {
-    console.log(`leave_plugin ${data.session_id} ${data.code} ${data.slot}`);
+  socket.on("plugin_instance_leave", async (data, callback) => {
+    if (!socket.user) return callback("Not logged in");
 
-    const plugin_room = `plugin:${data.slot}`;
-    socket.leave(plugin_room);
-    socket.broadcast.to(plugin_room).emit("plugin_user_left", {});
+    let pluginInstance = await prisma.pluginInstance.findUnique({
+      where: {
+        id: data.pluginInstanceId,
+      },
+    });
+
+    pluginInstance = await prisma.pluginInstance.update({
+      where: {
+        id: pluginInstance?.id,
+      },
+      data: {
+        users: {
+          disconnect: {
+            id: socket.user!.id,
+          },
+        },
+      },
+    });
+
+    // TODO Reselect host
+
+    socket.broadcast
+      .to(`plugin:${pluginInstance.id}`)
+      .emit("plugin_instance_user_leave", { username: socket.user.name });
+
+    socket.leave(`plugin:${data.pluginInstanceId}`);
   });
 
-  socket.on("delete_plugin", (data, callback) => {
-    console.log(`delete_plugin ${data.code} ${data.slot}`);
+  socket.on("plugin_instance_delete", async (data, callback) => {
+    if (!socket.user) return callback("Not logged in");
 
-    const plugin_room = `plugin:${data.slot}`;
-    io.in(plugin_room).socketsLeave(plugin_room);
+    const pluginInstance = await prisma.pluginInstance.findUnique({
+      where: {
+        id: data.pluginInstanceId,
+      },
+    });
 
-    lazy.push(data.slot);
-    instances[data.slot] = null;
+    if (!pluginInstance) return callback("Plugin Instance does not exist");
 
-    callback("ok");
+    if (pluginInstance.users.size > 3)
+      return callback("Error: People are still in the room");
+
+    io.in(`plugin:${data.pluginInstanceId}`).socketsLeave(
+      `plugin:${data.pluginInstanceId}`,
+    );
+
+    socket.broadcast.to(`room:${pluginInstanceId.room.code}`).emit("plugin_instance_deleted", {pluginInstanceId: pluginInstanceId.id});
+
+    callback(true);
   });
 
-  socket.on("get_data", (data, callback) => {
-    console.log(`get_data ${data.code} ${data.slot}`);
-    callback(instances[data.slot]);
+  socket.on("plugin_instance_data_get", async (data, callback) => {
+    const pluginInstance = await prisma.pluginInstance.findUnique({
+      which: {
+        id: data.pluginInstanceId,
+      },
+    });
+
+    callback(pluginInstance?.data);
   });
 
-  socket.on("set_data", (data, callback) => {
-    console.log(`set_data ${data.code} ${data.slot} ${data.data}`);
-    instances[data.slot] = data.data;
-    callback("ok");
+  socket.on("plugin_instance_data_set", async (data, callback) => {
+    const pluginInstance = await prisma.pluginInstance.findUnique({
+      which: {
+        id: data.pluginInstanceId,
+      },
+    });
+
+    if (!pluginInstance) return callback("Plugin Instance does not exist");
+
+    pluginInstance.data = data.data;
+
+    callback(true);
   });
 
-  socket.on("send_plugin_broadcast", (data, callback) => {
-    console.log(`plugin_broadcast ${data.code} ${data.slot} ${data.msg}`);
-    const plugin_room = `plugin:${data.slot}`;
-    socket.broadcast.to(plugin_room).emit("broadcasted_plugin_event", data.msg);
+  socket.on("plugin_instance_broadcast", (data, callback) => {
+    socket.broadcast
+      .to(`plugin:${data.pluginInstanceId}`)
+      .emit("plugin_instance_broadcasted", data.msg);
   });
 
   socket.on("disconnect", () => {
